@@ -40,18 +40,77 @@ To submit your homework:
 
 
 """
+import traceback
 
+def welcome():
+    page = """
+<h1>Fancy calculator</h1>
+This calculator can complete the following calculations:
+<ul>
+    <li>add</li>
+        <ul>
+            <li>Example: Go to http://localhost:8080/add/5/11/4 to add 5 + 11 + 4</li>
+        </ul>
+    <li>subtract</li>
+        <ul>
+            <li>Example: Go to http://localhost:8080/subtract/2/6 to subtract 2 - 4</li>
+        </ul>
+    <li>multiply</li>
+        <ul>
+            <li>Example: Go to http://localhost:8080/multiply/7/3 to multiply 7 * 3</li>
+        </ul>
+    <li>divide</li>
+        <ul>
+            <li>Example: Go to http://localhost:8080/divide/36/2/9 to divide 36 / 2 / 9</li>
+        </ul>
+</ul>
+"""
+    return page
 
 def add(*args):
-    """ Returns a STRING with the sum of the arguments """
+    """ Returns a STRING with the sum of the arguments"""
+    try:
+        result = sum(int(x) for x in args)
+        body = f"Sum: {result}"
+    except (ValueError, TypeError):
+        body = "Does not compute"
+    return body
 
-    # TODO: Fill sum with the correct value, based on the
-    # args provided.
-    sum = "0"
+def subtract(*args):
+    """ Returns a STRING with the difference of the arguments"""
+    try:
+        difference = int(args[0]) - sum(int(x) for x in args[1:])
+        body = f"Difference: {difference}"
+    except (ValueError, TypeError):
+        body = "Does not compute"
+    return body
 
-    return sum
+def multiply(*args):
+    """ Returns a STRING with the product of the arguments"""
+    try:
+        result = 1
+        for arg in args:
+            result *= int(arg)
+        body = f"Product: {result}"
+    except (ValueError, TypeError):
+        body = "Does not compute"
+    return body
 
-# TODO: Add functions for handling more arithmetic operations.
+def divide(*args):
+    """ Returns a STRING with the quotient of the arguments"""
+    try:
+        result = None
+        for arg in args:
+            if result is None:
+                result = int(arg)
+            elif int(arg) == 0:
+                raise ZeroDivisionError
+            else:
+                result = result / int(arg)
+        body = f"Quotient: {int(result)}"
+    except (ValueError, TypeError):
+        body = "Does not compute"
+    return body
 
 def resolve_path(path):
     """
@@ -59,26 +118,54 @@ def resolve_path(path):
     arguments.
     """
 
-    # TODO: Provide correct values for func and args. The
-    # examples provide the correct *syntax*, but you should
-    # determine the actual values of func and args using the
-    # path.
-    func = add
-    args = ['25', '32']
+    funcs = {
+        '': welcome,
+        'add': add,
+        'subtract': subtract,
+        'multiply': multiply,
+        'divide': divide
+    }
+    path = path.strip('/').split('/')
+    args = path[1:]
+
+    try:
+        func = funcs[path[0]]
+    except KeyError:
+        raise NameError
 
     return func, args
 
 def application(environ, start_response):
-    # TODO: Your application code from the book database
-    # work here as well! Remember that your application must
-    # invoke start_response(status, headers) and also return
-    # the body of the response in BYTE encoding.
-    #
-    # TODO (bonus): Add error handling for a user attempting
-    # to divide by zero.
-    pass
+    headers = [('Content-type', 'text/html')]
+    status = "200 OK"
+
+    try:
+        path = environ.get('PATH_INFO', None)
+        if path is None:
+            raise NameError
+        func, args = resolve_path(path)
+        body = func(*args)
+        status = "200 OK"
+
+    except NameError:
+        status = "404 Not Found"
+        body = "<h1>Not Found</h1>"
+
+    except ZeroDivisionError:
+        status = "500 Internal Server Error"
+        body = "<h1>Only Jack Bauer can divide by zero.<h1>"
+
+    except Exception:
+        status = "500 Internal Server Error"
+        body = "<h1>Internal Server Error</h1>"
+        print(traceback.format_exc())
+
+    finally:
+        headers.append(('Content-length', str(len(body))))
+        start_response(status, headers)
+        return [body.encode('utf8')]
 
 if __name__ == '__main__':
-    # TODO: Insert the same boilerplate wsgiref simple
-    # server creation that you used in the book database.
-    pass
+    from wsgiref.simple_server import make_server
+    srv = make_server('localhost', 8080, application)
+    srv.serve_forever()
